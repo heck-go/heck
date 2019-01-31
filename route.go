@@ -1,11 +1,21 @@
 package heck
 
+import (
+	"github.com/heck-go/pathtree"
+)
+
 type Route struct {
 	handler Handler
 
 	path string
 
 	pathRegexp map[string]string
+
+	pathVarMapping map[string]int
+
+	pathGlobVarMapping int
+
+	pathGlobVarName string
 
 	methods []string
 
@@ -18,11 +28,31 @@ func NewRoute(handler Handler, methods []string, path string, pathRegexp map[str
 	if pathRegexp == nil {
 		pathRegexp = map[string]string{}
 	}
+
+	pathVarMapping := map[string]int{}
+	pathGlobVarMapping := -1
+	var pathGlobVarName string
+
+	segments := pathtree.PathToSegments(path)
+	for i, seg := range segments {
+		if seg[0] == ':' {
+			if i == len(segments)-1 && seg[len(segments)-1] == '*' {
+				pathGlobVarMapping = i
+				pathGlobVarName = seg[1 : len(seg)-1]
+			} else {
+				pathVarMapping[seg[1:]] = i
+			}
+		}
+	}
+
 	return &Route{
-		handler:    handler,
-		methods:    methods,
-		path:       path,
-		pathRegexp: pathRegexp,
+		handler:            handler,
+		methods:            methods,
+		path:               path,
+		pathRegexp:         pathRegexp,
+		pathVarMapping:     pathVarMapping,
+		pathGlobVarMapping: pathGlobVarMapping,
+		pathGlobVarName:    pathGlobVarName,
 	}
 }
 

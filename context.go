@@ -3,14 +3,15 @@ package heck
 import (
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type Context struct {
 	request *http.Request
-	
+
 	// Response
-	Response Response
-	
+	Response *Response
+
 	pathSegments []string
 
 	route *Route
@@ -18,24 +19,51 @@ type Context struct {
 	before []Handler
 
 	after []Handler
+
+	PathParams *CastableMap
+	
+	Query *CastableMap
 }
 
 // Creates a new context
 func NewContext(request *http.Request, pathSegments []string, route *Route) *Context {
-	before := make([]Handler, len(route.before))
-	for i, v := range route.before {
-		before[i] = v
+	var before, after []Handler
+	pathParams := NewCastableMap(map[string]string{})
+	query := NewCastableMap(map[string]string{})
+	if route != nil {
+		// Before interceptors
+		before = make([]Handler, len(route.before))
+		for i, v := range route.before {
+			before[i] = v
+		}
+		// After interceptor
+		after = make([]Handler, len(route.after))
+		for i, v := range route.after {
+			after[i] = v
+		}
+
+		// Variable path parameters
+		for n, i := range route.pathVarMapping {
+			pathParams.data[n] = pathSegments[i]
+		}
+		if route.pathGlobVarMapping != -1 {
+			pathParams.data[route.pathGlobVarName] = strings.Join(pathSegments[route.pathGlobVarMapping:], "/")
+		}
+		
+		q := request.URL.Query()
+		for k, v := range q {
+			query.data[k] = v[0]
+		}
 	}
-	after := make([]Handler, len(route.after))
-	for i, v := range route.after {
-		after[i] = v
-	}
+
 	return &Context{
-		request: request,
+		request:      request,
 		pathSegments: pathSegments,
-		route:  route,
-		before: before,
-		after:  after,
+		route:        route,
+		before:       before,
+		after:        after,
+		PathParams:pathParams,
+		Query:query,
 	}
 }
 
@@ -51,8 +79,6 @@ func (ctx *Context) Execute() {
 	for i := 0; i < len(ctx.after); i++ {
 		ctx.after[i](ctx)
 	}
-
-	// TODO handle exceptions
 }
 
 func (self *Context) Before(before ...Handler) {

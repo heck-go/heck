@@ -3,6 +3,7 @@ package heck
 import (
 	"github.com/heck-go/pathtree"
 	"net/http"
+	"runtime/debug"
 )
 
 // Handler is a function that handles HTTP requests
@@ -15,13 +16,20 @@ type Server struct {
 	routes []*Route
 
 	paths *pathtree.PathTree
+
+	errorWriter ErrorWriter
 }
 
 func NewServer(addr string) *Server {
 	return &Server{
-		addr:  addr,
-		paths: pathtree.NewPathTree(),
+		addr:        addr,
+		paths:       pathtree.NewPathTree(),
+		errorWriter: &DefaultErrorWriter{},
 	}
+}
+
+func (self *Server) SetErrorWriter(errorWriter ErrorWriter) {
+	self.errorWriter = errorWriter
 }
 
 func (self *Server) Method(methods []string, handler Handler) *Route {
@@ -73,11 +81,32 @@ func (self *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	segments := pathtree.PathToSegments(r.URL.Path)
 	match := self.paths.Match(segments, r.Method)
 	if match == nil {
-		// TODO 404
+		ctx := NewContext(r, segments, nil)
+		ctx.Response = self.errorWriter.Write404(ctx)
+		ctx.Response.Write(w)
 		return
 	}
 
 	ctx := NewContext(r, segments, match.(*Route))
+
+	defer func() {
+		// TODO handle exceptions
+
+		defer func() {
+			if err := recover(); err != nil {
+				if !r.Close {
+					ctx.Response = self.errorWriter.Write500(err, debug.Stack(), ctx)
+					ctx.Response.Write(w)
+				}
+			}
+		}()
+
+		if err := recover(); err != nil {
+			ctx.Response = self.errorWriter.Write500(err, debug.Stack(), ctx)
+			ctx.Response.Write(w)
+		}
+	}()
+
 	ctx.Execute()
 
 	// Write response
