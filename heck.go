@@ -68,6 +68,30 @@ func (self *Server) PostFor(path string, handler Handler, pathRegExp map[string]
 	return route
 }
 
+func (self *Server) Put(handler Handler) *Route {
+	route := NewRoute(handler, []string{"PUT"}, "", nil)
+	self.routes = append(self.routes, route)
+	return route
+}
+
+func (self *Server) PutFor(path string, handler Handler, pathRegExp map[string]string) *Route {
+	route := NewRoute(handler, []string{"PUT"}, path, pathRegExp)
+	self.routes = append(self.routes, route)
+	return route
+}
+
+func (self *Server) Delete(handler Handler) *Route {
+	route := NewRoute(handler, []string{"DELETE"}, "", nil)
+	self.routes = append(self.routes, route)
+	return route
+}
+
+func (self *Server) DeleteFor(path string, handler Handler, pathRegExp map[string]string) *Route {
+	route := NewRoute(handler, []string{"DELETE"}, path, pathRegExp)
+	self.routes = append(self.routes, route)
+	return route
+}
+
 func (self *Server) Start() error {
 	for _, r := range self.routes {
 		self.paths.Add(r.path, r, r.methods, r.pathRegexp)

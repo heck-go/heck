@@ -1,6 +1,8 @@
 package heck
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,8 +23,12 @@ type Context struct {
 	after []Handler
 
 	PathParams *CastableMap
-	
+
 	Query *CastableMap
+
+	rawBody *rawBody
+
+	Variabler
 }
 
 // Creates a new context
@@ -49,7 +55,7 @@ func NewContext(request *http.Request, pathSegments []string, route *Route) *Con
 		if route.pathGlobVarMapping != -1 {
 			pathParams.data[route.pathGlobVarName] = strings.Join(pathSegments[route.pathGlobVarMapping:], "/")
 		}
-		
+
 		q := request.URL.Query()
 		for k, v := range q {
 			query.data[k] = v[0]
@@ -62,8 +68,8 @@ func NewContext(request *http.Request, pathSegments []string, route *Route) *Con
 		route:        route,
 		before:       before,
 		after:        after,
-		PathParams:pathParams,
-		Query:query,
+		PathParams:   pathParams,
+		Query:        query,
 	}
 }
 
@@ -107,4 +113,37 @@ func (self *Context) Path() string {
 
 func (self *Context) PathSegments() []string {
 	return self.pathSegments
+}
+
+func (self *Context) Body() ([]byte, error) {
+	if self.rawBody != nil {
+		return self.rawBody.body, self.rawBody.err
+	}
+
+	body, err := ioutil.ReadAll(self.request.Body)
+	if err != nil {
+		return nil, err
+	}
+	self.rawBody = &rawBody{
+		body: body,
+		err:  nil,
+	}
+	return body, nil
+}
+
+func (self *Context) BodyAsJson(model interface{}) error {
+	body, err := self.Body()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(body, model)
+}
+
+func (self *Context) Header(key string) string {
+	return self.request.Header.Get(key)
+}
+
+type rawBody struct {
+	body []byte
+	err  error
 }
