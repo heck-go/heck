@@ -2,17 +2,20 @@ package heck
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
 )
 
+type ExceptionHandler func(ctx *Context, e interface{}, trace interface{})
+
 type Context struct {
 	request *http.Request
 
-	// Response
-	Response *Response
+	// strResponse
+	Response Response
 
 	pathSegments []string
 
@@ -22,11 +25,15 @@ type Context struct {
 
 	after []Handler
 
+	exceptionHandlers []ExceptionHandler
+
 	PathParams *CastableMap
 
 	Query *CastableMap
 
 	rawBody *rawBody
+
+	routeHandlerExecuted bool
 
 	Variabler
 }
@@ -73,6 +80,11 @@ func NewContext(request *http.Request, pathSegments []string, route *Route) *Con
 	}
 }
 
+// Execute after middlewares
+func (ctx *Context) execAfter() {
+
+}
+
 func (ctx *Context) Execute() {
 	// Execute before middlewares
 	for i := 0; i < len(ctx.before); i++ {
@@ -80,9 +92,9 @@ func (ctx *Context) Execute() {
 	}
 
 	ctx.route.Execute(ctx)
+	ctx.routeHandlerExecuted = true
 
-	// Execute after middlewares
-	for i := 0; i < len(ctx.after); i++ {
+	for i := len(ctx.after) - 1; i >= 0; i-- {
 		ctx.after[i](ctx)
 	}
 }
@@ -92,7 +104,17 @@ func (self *Context) Before(before ...Handler) {
 }
 
 func (self *Context) After(after ...Handler) {
+	if self.routeHandlerExecuted {
+		panic("After middleware cannot be added after completion of route handler!")
+	}
 	self.after = append(self.after, after...)
+}
+
+func (self *Context) OnException(eh ...ExceptionHandler) {
+	if self.routeHandlerExecuted {
+		panic("Exception handlers cannot be added after completion of route handler!")
+	}
+	self.exceptionHandlers = append(self.exceptionHandlers, eh...)
 }
 
 func (self *Context) Request() *http.Request {
@@ -141,6 +163,33 @@ func (self *Context) BodyAsJson(model interface{}) error {
 
 func (self *Context) Header(key string) string {
 	return self.request.Header.Get(key)
+}
+
+func (self *Context) WriteString(statusCode int, body interface{}) {
+	var b string
+	switch body.(type) {
+	case string:
+		b = body.(string)
+	default:
+		b = fmt.Sprint(body)
+	}
+	self.Response = String(statusCode, b)
+}
+
+func (self *Context) WriteJSON(statusCode int, body interface{}) error {
+	b, err := json.Marshal(body)
+	if err != nil {
+		self.Response = Bytes(statusCode, []byte{})
+		return err
+	}
+	self.Response = Bytes(statusCode, b)
+	self.Response.SetMimeType("application/JSON")
+	return nil
+}
+
+func (self *Context) Redirect(statusCode int, location string) error {
+	// TODO
+	return nil
 }
 
 type rawBody struct {

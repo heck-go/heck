@@ -14,7 +14,7 @@ type Variabler struct {
 
 func NewVariabler() *Variabler {
 	return &Variabler{
-		variablesById: map[string]interface{}{},
+		variablesById:   map[string]interface{}{},
 		variablesByType: map[reflect.Type]map[string]interface{}{},
 	}
 }
@@ -34,7 +34,7 @@ func (self *Variabler) GetVariableById(key string, variable interface{}) error {
 	if !ok {
 		return errors.New("variable with given id not found")
 	}
-	
+
 	if reflect.TypeOf(value) == reflect.TypeOf(variable).Elem() {
 		reflect.ValueOf(variable).Elem().Set(reflect.ValueOf(value))
 	} else if reflect.TypeOf(value).Implements(reflect.TypeOf(variable).Elem()) {
@@ -57,7 +57,7 @@ func (self *Variabler) GetVariableByType(variable interface{}, key string) error
 	if !ok {
 		return errors.New("variable with given type not found")
 	}
-	
+
 	if len(key) == 0 {
 		// Use any (in this case) value
 		for _, first := range m {
@@ -65,7 +65,7 @@ func (self *Variabler) GetVariableByType(variable interface{}, key string) error
 			return nil
 		}
 	}
-	
+
 	v, ok1 := m[key]
 	if !ok1 {
 		return errors.New("variable with given type and id not found")
